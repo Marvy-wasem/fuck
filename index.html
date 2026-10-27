@@ -1,1 +1,79 @@
-https://claude.ai/chat/d82d7792-cfdd-4f96-b3ae-987798f8d11d?artifact=aeffb672-29bb-4701-8487-385c676c7699
+28, 16, 12), new THREE.MeshLambertMaterial({color:0xffe0bd})); head.position.y = 1.85;
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(.7, .6, .4), new THREE.MeshLambertMaterial({color:0x333a55})); legs.position.y = .3;
+  g.add(body, head, legs);
+  g.userData = {alive:true, a: i*2.1 + 0.5, r: 8 + i*2.5, s: (i%2?-1:1)*(.25 + i*.08), fall:0};
+  scene.add(g); enemies.push(g);
+}
+for (let i=0;i<3;i++) makeEnemy(i);
+
+let yaw = 0, pitch = 0, kills = 0, playing = false;
+
+// look controls (drag)
+let drag = null;
+renderer.domElement.addEventListener("pointerdown", e => { drag = {x:e.clientX, y:e.clientY}; });
+addEventListener("pointermove", e => {
+  if (!drag || !playing) return;
+  yaw -= (e.clientX - drag.x) * .006;
+  pitch = Math.max(-.6, Math.min(.6, pitch - (e.clientY - drag.y) * .006));
+  drag = {x:e.clientX, y:e.clientY};
+});
+addEventListener("pointerup", () => drag = null);
+
+const ray = new THREE.Raycaster();
+function fire(){
+  if (!playing) return;
+  const f = $("flash"); f.style.opacity = .35; setTimeout(() => f.style.opacity = 0, 80);
+  ray.setFromCamera({x:0, y:0}, cam);
+  const hits = ray.intersectObjects(enemies.filter(e => e.userData.alive), true);
+  if (!hits.length) return;
+  let o = hits[0].object; while (o.parent && !o.userData.alive && o.parent !== scene) o = o.parent;
+  if (!o.userData.alive) return;
+  o.userData.alive = false;
+  o.traverse(c => { if (c.material) { c.material = c.material.clone(); c.material.color.multiplyScalar(.4); } });
+  kills++; $("cnt").textContent = kills;
+  if (kills >= 3) setTimeout(finish, 900);
+}
+$("fire").addEventListener("pointerdown", e => { e.stopPropagation(); fire(); });
+addEventListener("keydown", e => { if (e.code === "Space") fire(); });
+
+function finish(){
+  playing = false;
+  $("msg").textContent = MESSAGE;
+  $("end").classList.remove("hide");
+}
+function reset(){
+  kills = 0; $("cnt").textContent = 0; yaw = 0; pitch = 0;
+  enemies.forEach(e => scene.remove(e)); enemies.length = 0;
+  for (let i=0;i<3;i++) makeEnemy(i);
+  $("end").classList.add("hide"); playing = true;
+}
+$("go").onclick = () => { $("start").classList.add("hide"); playing = true; };
+$("again").onclick = reset;
+
+addEventListener("resize", () => {
+  cam.aspect = innerWidth/innerHeight; cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+let last = performance.now();
+(function loop(t){
+  requestAnimationFrame(loop);
+  const dt = Math.min((t-last)/1000, .05); last = t;
+  enemies.forEach(e => {
+    const d = e.userData;
+    if (d.alive){
+      d.a += d.s*dt;
+      e.position.set(Math.cos(d.a)*d.r, Math.abs(Math.sin(t/220 + d.a*5))*.12, Math.sin(d.a)*d.r);
+      e.rotation.y = -d.a + (d.s>0 ? 0 : Math.PI);
+    } else if (d.fall < 1){
+      d.fall = Math.min(1, d.fall + dt*2.5);
+      e.rotation.x = -d.fall*Math.PI/2;
+      e.position.y = d.fall*.35;
+    }
+  });
+  cam.rotation.set(pitch, yaw, 0);
+  renderer.render(scene, cam);
+})(performance.now());
+</script>
+</body>
+</html>
